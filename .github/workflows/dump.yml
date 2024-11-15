@@ -1,4 +1,4 @@
-name: Pong Firmware Dumper
+name: Tetris Firmware Dumper
 
 on:
   workflow_dispatch:
