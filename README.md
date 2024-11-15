@@ -1,5 +1,8 @@
 # CMF PHONE 1 archive
 * Unmodified CMF PHONE 1 OTA images archive
+* Check out the Telegram groups in case of any errors.
+* [Official](https://t.me/CMFPhone1)
+* [OffTopic](https://t.me/NothingCMFphone1)
 
 ## Downloads
 Downloads are tagged with `POST_OTA_VERSION`, NothingOS version,
