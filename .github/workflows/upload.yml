@@ -1,0 +1,69 @@
+name: Download from GoFile Folder and Upload to GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      gofile_folder_url:
+        description: "The GoFile folder link"
+        required: true
+        type: string
+
+  push:
+    tags:
+      - "v*"          # Automatically triggers on pushing a tag starting with "v" (e.g., v1.0)
+
+jobs:
+  download_and_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Extract Folder Code from GoFile Link
+        id: extract_folder_code
+        run: |
+          # Extract the folder code from the GoFile link (last part of the URL)
+          folder_url="${{ github.event.inputs.gofile_folder_url }}"
+          folder_code="${folder_url##*/}"
+          echo "folder_code=$folder_code" >> $GITHUB_ENV
+
+      - name: Get File Information from GoFile
+        id: get_file_info
+        env:
+          GOFILE_API_URL: "https://api.gofile.io/getContent"
+        run: |
+          # Get file metadata from GoFile API
+          response=$(curl -s "${GOFILE_API_URL}?contentId=${folder_code}&token=&websiteToken=websiteToken&cache=true")
+          file_url=$(echo "$response" | jq -r '.data.contents | .[] | .link')
+          file_name=$(echo "$response" | jq -r '.data.contents | .[] | .name')
+
+          # Output the file URL and name as environment variables
+          echo "file_url=$file_url" >> $GITHUB_ENV
+          echo "file_name=$file_name" >> $GITHUB_ENV
+
+      - name: Download File from GoFile
+        run: |
+          # Download the file from GoFile using the retrieved URL and name
+          wget -O "$file_name" "$file_url"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name || 'manual-release' }}  # Use tag if available, otherwise 'manual-release'
+          release_name: "Release ${{ github.ref_name || 'manual-release' }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload File to GitHub Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./${{ env.file_name }}
+          asset_name: ${{ env.file_name }}
+          asset_content_type: application/octet-stream
