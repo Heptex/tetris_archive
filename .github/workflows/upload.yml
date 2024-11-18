@@ -1,0 +1,53 @@
+name: Download from GoFile and Upload to GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      gofile_url:
+        description: "The direct download link for the file from GoFile"
+        required: true
+        type: string
+      file_name:
+        description: "The name to use for the downloaded file in the release"
+        required: true
+        type: string
+
+  push:
+    tags:
+      - "v*"          # Automatically triggers on pushing a tag starting with "v" (e.g., v1.0)
+
+jobs:
+  download_and_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Download File from GoFile
+        env:
+          GOFILE_URL: ${{ github.event.inputs.gofile_url }}
+        run: |
+          # Download file from GoFile
+          wget -O "${{ github.event.inputs.file_name }}" "$GOFILE_URL"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name || 'manual-release' }}  # Use tag if available, otherwise 'manual-release'
+          release_name: "Release ${{ github.ref_name || 'manual-release' }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload File to GitHub Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./${{ github.event.inputs.file_name }}
+          asset_name: ${{ github.event.inputs.file_name }}
+          asset_content_type: application/octet-stream
