@@ -1,0 +1,70 @@
+name: Build LineageOS ROM
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_and_device:
+        description: 'Provide the ROM repo URL and device tree path, separated by a space.'
+        required: true
+        default: 'https://github.com/LineageOS/android.git device/<vendor>/<device>'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout LineageOS repository
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ github.event.inputs.repo_and_device.split(' ')[0] }}
+          ref: lineage-20.0  # Use the appropriate branch, e.g., lineage-20.0
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Set up required dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git bc bison flex libssl-dev \
+            libncurses5-dev libncurses5 \
+            zlib1g-dev g++-multilib build-essential \
+            libxml2-utils xz-utils curl lzma \
+            unzip python3 python3-pip python3-venv
+
+      - name: Install Repo tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          export PATH=$PATH:~/bin
+
+      - name: Clone device tree repository
+        run: |
+          git clone https://github.com/${{ github.event.inputs.repo_and_device.split(' ')[1] }} device
+
+      - name: Initialize repo and sync LineageOS source
+        run: |
+          mkdir -p ~/android
+          cd ~/android
+          repo init -u https://github.com/LineageOS/android.git -b lineage-20.0  # Use the appropriate branch, e.g., lineage-20.0
+          repo sync -j$(nproc) --force-sync --no-clone-bundle
+
+      - name: Set up build environment
+        run: |
+          cd ~/android
+          source build/envsetup.sh
+          lunch lineage_${{ github.event.inputs.repo_and_device.split(' ')[1] }}-userdebug
+
+      - name: Build the ROM
+        run: |
+          cd ~/android
+          make -j$(nproc) otapackage
+
+      - name: Upload the ROM build artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: lineage-rom-build
+          path: ~/android/out/target/product/${{ github.event.inputs.repo_and_device.split(' ')[1] }}/*/*.zip
